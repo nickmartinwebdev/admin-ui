@@ -8,6 +8,7 @@ import {
   Stack,
 } from '@mantine/core'
 import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { getStatusColor, getRoleColor } from '@/theme'
 import type { User } from '@/schemas/user'
 
 interface UserCardProps {
@@ -17,44 +18,29 @@ interface UserCardProps {
 }
 
 export function UserCard({ user, onEdit, onDelete }: UserCardProps) {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'green'
-      case 'inactive':
-        return 'red'
-      case 'suspended':
-        return 'yellow'
-      default:
-        return 'gray'
-    }
-  }
-
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return 'red'
-      case 'moderator':
-        return 'blue'
-      case 'user':
-        return 'gray'
-      default:
-        return 'gray'
-    }
-  }
-
   return (
-    <Card padding="lg" radius="md" withBorder>
-      <Group justify="space-between" mb="xs">
+    <Card 
+      padding="lg" 
+      radius="md" 
+      withBorder
+      shadow="sm"
+      style={{ height: '100%' }}
+    >
+      <Group justify="space-between" mb="md">
         <Group>
-          <Avatar size={50} src={user.avatar} radius={50}>
+          <Avatar 
+            size={50} 
+            src={user.avatar} 
+            radius={50}
+            color={getRoleColor(user.role)}
+          >
             {user.name.charAt(0).toUpperCase()}
           </Avatar>
           <Stack gap={4}>
-            <Text fw={500} size="lg">
+            <Text fw={600} size="lg" lineClamp={1}>
               {user.name}
             </Text>
-            <Text size="sm" c="dimmed">
+            <Text size="sm" c="dimmed" lineClamp={1}>
               {user.email}
             </Text>
           </Stack>
@@ -66,7 +52,8 @@ export function UserCard({ user, onEdit, onDelete }: UserCardProps) {
               variant="subtle"
               color="gray"
               onClick={() => onEdit(user.id)}
-              aria-label="Edit user"
+              aria-label={`Edit ${user.name}`}
+              size="md"
             >
               <IconPencil size="1rem" stroke={1.5} />
             </ActionIcon>
@@ -76,7 +63,8 @@ export function UserCard({ user, onEdit, onDelete }: UserCardProps) {
               variant="subtle"
               color="red"
               onClick={() => onDelete(user.id)}
-              aria-label="Delete user"
+              aria-label={`Delete ${user.name}`}
+              size="md"
             >
               <IconTrash size="1rem" stroke={1.5} />
             </ActionIcon>
@@ -84,16 +72,26 @@ export function UserCard({ user, onEdit, onDelete }: UserCardProps) {
         </Group>
       </Group>
 
-      <Group justify="space-between" mt="md">
-        <Badge color={getRoleColor(user.role)} variant="light" size="sm">
+      <Group justify="space-between" mt="md" mb="sm">
+        <Badge 
+          color={getRoleColor(user.role)} 
+          variant="light" 
+          size="sm"
+          radius="sm"
+        >
           {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
         </Badge>
-        <Badge color={getStatusColor(user.status)} variant="filled" size="sm">
+        <Badge 
+          color={getStatusColor(user.status)} 
+          variant="filled" 
+          size="sm"
+          radius="sm"
+        >
           {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
         </Badge>
       </Group>
 
-      <Text size="xs" c="dimmed" mt="sm">
+      <Text size="xs" c="dimmed" mt="auto">
         Created: {new Date(user.createdAt).toLocaleDateString()}
       </Text>
     </Card>

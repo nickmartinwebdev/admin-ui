@@ -1,6 +1,7 @@
 import type { Preview } from '@storybook/react'
 import { MantineProvider } from '@mantine/core'
 import { initialize, mswLoader } from 'msw-storybook-addon'
+import { adminTheme } from '../src/theme'
 
 // Import Mantine styles
 import '@mantine/core/styles.css'
@@ -19,19 +20,42 @@ const preview: Preview = {
         date: /Date$/i,
       },
     },
-    // Default Mantine color scheme
-    mantineProvider: {
-      theme: {},
+    // Configure theme controls
+    backgrounds: {
+      default: 'light',
+      values: [
+        { name: 'light', value: '#ffffff' },
+        { name: 'dark', value: '#242424' },
+      ],
     },
   },
   decorators: [
-    (Story) => (
-      <MantineProvider>
-        <Story />
-      </MantineProvider>
-    ),
+    (Story, context) => {
+      const colorScheme = context.globals.colorScheme || context.parameters.colorScheme || 'light'
+      
+      return (
+        <MantineProvider theme={adminTheme} forceColorScheme={colorScheme}>
+          <Story />
+        </MantineProvider>
+      )
+    },
   ],
   loaders: [mswLoader],
+  globalTypes: {
+    colorScheme: {
+      description: 'Mantine color scheme',
+      defaultValue: 'light',
+      toolbar: {
+        title: 'Color scheme',
+        icon: 'mirror',
+        items: [
+          { value: 'light', title: 'Light', icon: 'sun' },
+          { value: 'dark', title: 'Dark', icon: 'moon' },
+        ],
+        dynamicTitle: true,
+      },
+    },
+  },
 }
 
 export default preview
