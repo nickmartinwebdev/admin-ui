@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { z } from 'zod'
 import {
   Container,
   Title,
@@ -12,55 +13,129 @@ import {
   TextInput,
   ActionIcon,
   Pagination,
+  Select,
+  Alert,
+  Stack,
 } from '@mantine/core'
-import { IconSearch, IconPlus, IconPencil, IconTrash } from '@tabler/icons-react'
+import { 
+  IconSearch, 
+  IconPlus, 
+  IconPencil, 
+  IconTrash,
+  IconAlertCircle,
+} from '@tabler/icons-react'
 import { useState } from 'react'
+import { useUsers, useDeleteUser } from '@/api/users'
+import { DataLoading } from '@/components/LoadingSpinner'
+import { UserSearchParamsSchema, type UserSearchParams } from '@/schemas/user'
+import { getStatusColor, getRoleColor } from '@/theme'
+
+// Search params validation schema
+const usersSearchSchema = z.object({
+  page: z.number().int().min(1).catch(1),
+  limit: z.number().int().min(1).max(100).catch(10),
+  search: z.string().optional(),
+  role: z.enum(['admin', 'user', 'moderator']).optional(),
+  status: z.enum(['active', 'inactive', 'suspended']).optional(),
+})
 
 export const Route = createFileRoute('/users')({
   component: Users,
+  validateSearch: usersSearchSchema,
+  pendingComponent: () => <DataLoading rows={5} />,
+  errorComponent: ({ error }) => (
+    <Container size="xl">
+      <Alert variant="light" color="red" title="Failed to load users" icon={<IconAlertCircle size="1rem" />}>
+        {error.message}
+      </Alert>
+    </Container>
+  ),
 })
 
-// Mock data for demonstration
-const mockUsers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    email: 'john@example.com',
-    role: 'Admin',
-    status: 'active',
-    avatar: 'https://raw.githubusercontent.com/mantinedev/mantine/master/.demo/avatars/avatar-1.png',
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    email: 'jane@example.com',
-    role: 'User',
-    status: 'active',
-    avatar: 'https://raw.githubusercontent.com/mantinedev/mantine/master/.demo/avatars/avatar-2.png',
-  },
-  {
-    id: '3',
-    name: 'Bob Johnson',
-    email: 'bob@example.com',
-    role: 'User',
-    status: 'inactive',
-    avatar: 'https://raw.githubusercontent.com/mantinedev/mantine/master/.demo/avatars/avatar-3.png',
-  },
-]
-
 function Users() {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
+  const { page, limit, search, role, status } = Route.useSearch()
+  const navigate = Route.useNavigate()
   
-  const getStatusColor = (status: string) => {
-    return status === 'active' ? 'green' : 'red'
+  // Create search params for API
+  const searchParams: UserSearchParams = {
+    page: page || 1,
+    limit: limit || 10,
+    search: search || undefined,
+    role: role || undefined,
+    status: status || undefined,
   }
 
-  const rows = mockUsers.map((user) => (
+  const {
+    data,
+    isLoading,
+    error,
+    isError,
+  } = useUsers(searchParams)
+
+  const deleteUser = useDeleteUser()
+
+  const updateSearch = (updates: Partial<typeof searchParams>) => {
+    navigate({
+      search: (prev) => ({ ...prev, ...updates, page: 1 }), // Reset to page 1 when searching
+    })
+  }
+
+  const updatePage = (newPage: number) => {
+    navigate({
+      search: (prev) => ({ ...prev, page: newPage }),
+    })
+  }
+
+  const handleDeleteUser = async (userId: string) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      deleteUser.mutate(userId)
+    }
+  }
+
+  const getStatusBadgeColor = (status: string) => {
+    const colorMap: Record<string, string> = {
+      active: 'green',
+      inactive: 'red',
+      suspended: 'orange',
+    }
+    return colorMap[status] || 'gray'
+  }
+
+  const getRoleBadgeColor = (role: string) => {
+    const colorMap: Record<string, string> = {
+      admin: 'red',
+      moderator: 'blue',
+      user: 'gray',
+    }
+    return colorMap[role] || 'gray'
+  }
+
+  if (isError && error) {
+    return (
+      <Container size="xl">
+        <Alert 
+          variant="light" 
+          color="red" 
+          title="Failed to load users" 
+          icon={<IconAlertCircle size="1rem" />}
+        >
+          {error.message}
+        </Alert>
+      </Container>
+    )
+  }
+
+  const users = data?.users || []
+  const total = data?.total || 0
+  const totalPages = Math.ceil(total / (limit || 10))
+
+  const rows = users.map((user) => (
     <Table.Tr key={user.id}>
       <Table.Td>
         <Group gap="sm">
-          <Avatar size={40} src={user.avatar} radius={40} />
+          <Avatar size={40} src={user.avatar} radius={40}>
+            {user.name.charAt(0).toUpperCase()}
+          </Avatar>
           <div>
             <Text fz="sm" fw={500}>
               {user.name}
@@ -72,21 +147,31 @@ function Users() {
         </Group>
       </Table.Td>
       <Table.Td>
-        <Badge color={user.role === 'Admin' ? 'blue' : 'gray'} variant="light">
-          {user.role}
+        <Badge color={getRoleBadgeColor(user.role)} variant="light">
+          {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
         </Badge>
       </Table.Td>
       <Table.Td>
-        <Badge color={getStatusColor(user.status)} variant="light">
-          {user.status}
+        <Badge color={getStatusBadgeColor(user.status)} variant="light">
+          {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
         </Badge>
       </Table.Td>
       <Table.Td>
         <Group gap={0} justify="flex-end">
-          <ActionIcon variant="subtle" color="gray">
+          <ActionIcon 
+            variant="subtle" 
+            color="gray"
+            aria-label={`Edit ${user.name}`}
+          >
             <IconPencil size="1rem" stroke={1.5} />
           </ActionIcon>
-          <ActionIcon variant="subtle" color="red">
+          <ActionIcon 
+            variant="subtle" 
+            color="red"
+            onClick={() => handleDeleteUser(user.id)}
+            loading={deleteUser.isPending}
+            aria-label={`Delete ${user.name}`}
+          >
             <IconTrash size="1rem" stroke={1.5} />
           </ActionIcon>
         </Group>
@@ -109,35 +194,94 @@ function Users() {
       </Group>
 
       <Card padding="lg" radius="md" withBorder>
-        <Group justify="space-between" mb="md">
-          <TextInput
-            placeholder="Search users..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.currentTarget.value)}
-            leftSection={<IconSearch size="1rem" />}
-            style={{ flex: 1, maxWidth: 400 }}
-          />
-        </Group>
+        <Stack gap="md" mb="md">
+          <Group justify="space-between">
+            <TextInput
+              placeholder="Search users..."
+              value={search || ''}
+              onChange={(event) => updateSearch({ search: event.currentTarget.value })}
+              leftSection={<IconSearch size="1rem" />}
+              style={{ flex: 1, maxWidth: 400 }}
+            />
+            <Group>
+              <Select
+                placeholder="Filter by role"
+                value={role || null}
+                onChange={(value) => updateSearch({ role: value as any })}
+                data={[
+                  { value: 'admin', label: 'Admin' },
+                  { value: 'moderator', label: 'Moderator' },
+                  { value: 'user', label: 'User' },
+                ]}
+                clearable
+                style={{ minWidth: 150 }}
+              />
+              <Select
+                placeholder="Filter by status"
+                value={status || null}
+                onChange={(value) => updateSearch({ status: value as any })}
+                data={[
+                  { value: 'active', label: 'Active' },
+                  { value: 'inactive', label: 'Inactive' },
+                  { value: 'suspended', label: 'Suspended' },
+                ]}
+                clearable
+                style={{ minWidth: 150 }}
+              />
+            </Group>
+          </Group>
 
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>User</Table.Th>
-              <Table.Th>Role</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>{rows}</Table.Tbody>
-        </Table>
+          {/* Results summary */}
+          <Group justify="space-between">
+            <Text size="sm" c="dimmed">
+              {isLoading ? 'Loading...' : `Showing ${users.length} of ${total} users`}
+            </Text>
+            <Group gap="xs">
+              <Text size="sm" c="dimmed">Show:</Text>
+              <Select
+                size="xs"
+                value={String(limit || 10)}
+                onChange={(value) => updateSearch({ limit: Number(value) })}
+                data={[
+                  { value: '10', label: '10' },
+                  { value: '25', label: '25' },
+                  { value: '50', label: '50' },
+                  { value: '100', label: '100' },
+                ]}
+                w={70}
+              />
+            </Group>
+          </Group>
+        </Stack>
 
-        <Group justify="center" mt="md">
-          <Pagination 
-            total={1} 
-            value={currentPage} 
-            onChange={setCurrentPage}
-          />
-        </Group>
+        {isLoading ? (
+          <DataLoading rows={limit || 10} />
+        ) : (
+          <>
+            <Table>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>User</Table.Th>
+                  <Table.Th>Role</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th />
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>{rows}</Table.Tbody>
+            </Table>
+
+            {totalPages > 1 && (
+              <Group justify="center" mt="md">
+                <Pagination 
+                  total={totalPages}
+                  value={page || 1}
+                  onChange={updatePage}
+                  size="sm"
+                />
+              </Group>
+            )}
+          </>
+        )}
       </Card>
     </Container>
   )
